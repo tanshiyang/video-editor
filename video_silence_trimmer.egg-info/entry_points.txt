@@ -1,0 +1,2 @@
+[console_scripts]
+video-trimmer = video_silence_trimmer.cli:main

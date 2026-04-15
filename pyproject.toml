@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-silence-trimmer"
+version = "0.1.0"
+description = "自动检测并切除视频中的静音片段"
+readme = "DESIGN.md"
+requires-python = ">=3.10"
+dependencies = [
+    "librosa>=0.10.0",
+    "numpy>=1.24.0",
+    "soundfile>=0.12.0",
+    "click>=8.0.0",
+    "loguru>=0.7.0",
+]
+
+[project.scripts]
+video-trimmer = "video_silence_trimmer.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

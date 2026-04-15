@@ -1,0 +1,19 @@
+# 视频静音切除工具依赖
+# Python >= 3.10
+
+# 音视频处理
+librosa>=0.10.0
+numpy>=1.24.0
+soundfile>=0.12.0
+
+# FFmpeg Python 封装（可选，更推荐直接用 subprocess）
+# ffmpy2>=0.3.0
+
+# 命令行
+click>=8.0.0
+
+# 日志
+loguru>=0.7.0
+
+# 类型提示（可选）
+# typing-extensions>=4.0.0

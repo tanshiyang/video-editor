@@ -1,7 +1,7 @@
 """片段模型定义"""
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 
 @dataclass
@@ -68,5 +68,28 @@ class TrimResult:
             f"  切除片段数: {len(self.removed_segments)}\n"
             f"  保留片段数: {len(self.kept_segments)}\n"
             f"  处理耗时: {self.processing_time:.2f}s\n"
+            f")"
+        )
+
+
+@dataclass
+class MultiTrimResult:
+    """多视频联动剪切结果"""
+
+    main_result: TrimResult
+    """主视频剪切结果"""
+
+    secondary_results: Dict[str, TrimResult] = field(default_factory=dict)
+    """副视频剪切结果 {文件名: 结果}"""
+
+    total_processing_time: float = 0.0
+    """总处理耗时（秒）"""
+
+    def __repr__(self) -> str:
+        return (
+            f"MultiTrimResult(\n"
+            f"  主视频: {self.main_result.original_duration:.2f}s -> {self.main_result.output_duration:.2f}s\n"
+            f"  副视频数: {len(self.secondary_results)}\n"
+            f"  总处理耗时: {self.total_processing_time:.2f}s\n"
             f")"
         )

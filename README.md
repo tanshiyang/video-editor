@@ -9,6 +9,8 @@
 - **灵活配置**：支持自定义静音阈值、最小静音时长等参数
 - **跨平台**：支持 Windows、Linux、macOS
 - **命令行界面**：易于集成到自动化流程
+- **多视频联动**：支持主文件+副文件模式，副视频同步跟随主视频剪切
+- **批量处理**：一次处理多个视频，保持时间轴同步
 
 ## 安装
 
@@ -55,40 +57,55 @@ pip install -e .
 
 ### 命令行
 
+**单文件模式：**
 ```bash
 video-trimmer trim <input_video> [OPTIONS]
+```
+
+**多视频联动模式：**
+```bash
+video-trimmer trim <main_video> -s <secondary_video1> -s <secondary_video2> ...
 ```
 
 **参数说明：**
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `<input_video>` | 输入视频路径 | - |
-| `-o, --output` | 输出视频路径 | 必填 |
+| `<input_video>` | 输入视频路径（单文件）或主视频路径 | - |
+| `-o, --output` | 输出视频路径（主视频输出路径） | 必填 |
+| `-s, --secondary` | 副视频文件路径（可多次使用） | - |
 | `-t, --threshold` | 静音阈值(dB)，越低越严格 | -40 |
 | `-d, --min-duration` | 最小静音时长(秒) | 0.5 |
 | `--keep-before` | 静音前保留时间(秒) | 0.1 |
 | `--keep-after` | 静音后保留时间(秒) | 0.1 |
+| `--output-suffix` | 副视频输出文件名后缀 | "_trimmed" |
 | `-v, --verbose` | 输出详细日志 | False |
 | `--dry-run` | 仅分析，不执行剪切 | False |
 
 **示例：**
 
 ```bash
-# 基本用法
+# 基本用法（单文件）
 video-trimmer trim input.mp4 -o output.mp4
 
-# 自定义阈值（更严格的静音检测）
-video-trimmer trim input.mp4 -o output.mp4 -t -50 -d 1.0
+# 多视频联动（主视频 + 副视频）
+video-trimmer trim main.mp4 -s secondary1.mp4 -s secondary2.mp4 -o main_trimmed.mp4
+# 输出: main_trimmed.mp4, secondary1_trimmed.mp4, secondary2_trimmed.mp4
 
-# 仅分析模式（不执行剪切）
-video-trimmer trim input.mp4 -o output.mp4 --dry-run -v
+# 自定义阈值
+video-trimmer trim main.mp4 -s sub.mp4 -o out.mp4 -t -50 -d 1.0
 
-# 完整参数示例
-video-trimmer trim input.mp4 -o output.mp4 -t -45 -d 0.3 --keep-before 0.2 --keep-after 0.2
+# 仅分析模式（仅分析主视频）
+video-trimmer trim main.mp4 -s sub.mp4 -o out.mp4 --dry-run -v
+
+# 指定副视频输出后缀
+video-trimmer trim main.mp4 -s sub1.mp4 -s sub2.mp4 -o main.mp4 --output-suffix "_cut"
+# 输出: main.mp4, sub1_cut.mp4, sub2_cut.mp4
 ```
 
 ### Python API
+
+**单文件模式：**
 
 ```python
 from video_silence_trimmer import VideoTrimmer, TrimmerConfig
@@ -119,6 +136,29 @@ config = TrimmerConfig(
 
 trimmer = VideoTrimmer(config)
 result = trimmer.trim("input.mp4", "output.mp4")
+```
+
+**多视频联动模式：**
+
+```python
+from video_silence_trimmer import VideoTrimmer, TrimmerConfig
+
+config = TrimmerConfig()
+trimmer = VideoTrimmer(config)
+
+# 主视频 + 副视频列表
+secondary_videos = ["secondary1.mp4", "secondary2.mp4"]
+
+result = trimmer.trim_multi(
+    main_video="main.mp4",
+    secondary_videos=secondary_videos,
+    output_dir="output/"
+)
+
+print(f"主视频: {result.main_result.output_duration:.2f}s")
+print(f"副视频处理数: {len(result.secondary_results)}")
+for name, r in result.secondary_results.items():
+    print(f"  {name}: {r.output_duration:.2f}s")
 ```
 
 ### 仅分析不剪切
@@ -198,6 +238,15 @@ A: 尝试降低阈值（如 `-t -50`）或减少最小静音时长（如 `-d 0.3
 
 **Q: 中文路径报错？**
 A: 确保使用 pathlib 或在传给 FFmpeg 前将路径转为正斜杠格式。
+
+**Q: 多视频联动时副视频时长与主视频不一致？**
+A: 主视频和所有副视频的时长必须完全一致。请确保所有视频长度相同后再进行处理。
+
+**Q: 多视频联动时副视频输出文件名是什么？**
+A: 默认在原文件名后加 `_trimmed` 后缀，如 `video.mp4` -> `video_trimmed.mp4`。可使用 `--output-suffix` 自定义后缀。
+
+**Q: 多视频联动模式下副视频没有音频怎么办？**
+A: 如果副视频没有音频流，会抛出 `NoAudioStreamError`。副视频即使没有音频也会按主视频的静音区间同步切除视频部分。
 
 ## 开发
 

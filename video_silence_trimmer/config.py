@@ -38,6 +38,9 @@ class TrimmerConfig:
     output_format: str = "mp4"
     """输出视频格式"""
 
+    output_suffix: str = "_trimmed"
+    """副视频输出文件名后缀"""
+
     video_codec: str = "libx264"
     """视频编码器"""
 

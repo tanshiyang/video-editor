@@ -10,12 +10,16 @@
 - **智能剪切**：按静音区间切除视频片段
 - **灵活配置**：支持自定义静音阈值、最小静音时长等参数
 - **多格式支持**：支持常见视频格式（MP4、MKV、MOV、AVI等）
+- **多视频联动**：支持主文件+副文件模式，副文件跟随主文件的静音区间同步切除
+- **批量处理**：一次处理多个视频，保持时间轴同步
 
 ### 1.3 应用场景
 - 去除会议/访谈录像中的长时间停顿
 - 清理屏幕录制中的无声空白
 - 精简教学/演示视频
 - 播客/配音素材预处理
+- **多机位剪辑**：多角度视频同步剪切（如讲座、演出、庭审等）
+- **多轨道同步**：主视频检测静音，副视频同步切除对应片段
 
 ---
 
@@ -218,7 +222,7 @@ video_silence_trimmer/
 └── config.py            # 配置模型定义
 ```
 
-### 3.2 核心流程
+### 3.2 核心流程（单文件模式）
 
 ```
 输入视频
@@ -252,6 +256,48 @@ video_silence_trimmer/
          ▼
 输出视频
 ```
+
+### 3.3 多视频联动流程
+
+```
+主视频 + 副视频1 + 副视频2 + ... + 副视频N
+    │
+    │  同步时长校验（确保所有视频长度一致）
+    │
+    ▼
+┌─────────────────┐
+│  主视频音频分析   │
+│  (librosa)      │
+│  - 计算响度      │
+│  - 检测静音区间  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  生成统一剪切清单 │
+│  (基于主视频)    │
+└────────┬────────┘
+         │
+         ├──────────────────────┐
+         │                      │
+         ▼                      ▼
+┌─────────────────┐    ┌─────────────────┐
+│  主视频剪切合并   │    │  副视频1剪切合并 │
+└────────┬────────┘    └────────┬────────┘
+         │                      │
+         ▼                      ▼
+   主视频_输出.mp4         副视频1_输出.mp4
+         │
+         │  ... (副视频2-N 同理)
+         │
+         ▼
+   副视频2_输出.mp4  ...  副视频N_输出.mp4
+```
+
+**关键约束**：
+- 主视频与所有副文件时长必须完全一致
+- 所有视频按相同的时间轴索引进行剪切
+- 保留/切除区间由主视频的音频分析结果决定
 
 ---
 
@@ -304,33 +350,52 @@ is_silent = rms < SILENCE_THRESHOLD  # 默认: -40 dB
 
 ### 5.1 命令行接口
 
+**单文件模式：**
 ```bash
 video-trimmer trim <input_video> [OPTIONS]
-
-Options:
-  -o, --output PATH              输出文件路径
-  -t, --threshold DB             静音阈值(dB)，默认 -40
-  -d, --min-duration SEC         最小静音时长(s)，默认 0.5
-  --keep-before SEC              静音前保留时间，默认 0.1
-  --keep-after SEC               静音后保留时间，默认 0.1
-  -v, --verbose                  输出详细日志
-  --dry-run                      仅分析，不执行剪切
 ```
+
+**多视频联动模式：**
+```bash
+video-trimmer trim <main_video> -s <secondary_video1> -s <secondary_video2> ... [OPTIONS]
+```
+
+**Options:**
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `-o, --output` | 输出文件路径（主视频输出路径） | 必填 |
+| `-s, --secondary` | 副视频文件路径（可多次使用） | - |
+| `-t, --threshold` | 静音阈值(dB)，越低越严格 | -40 |
+| `-d, --min-duration` | 最小静音时长(秒) | 0.5 |
+| `--keep-before` | 静音前保留时间(秒) | 0.1 |
+| `--keep-after` | 静音后保留时间(秒) | 0.1 |
+| `--output-suffix` | 副视频输出文件名后缀 | "_trimmed" |
+| `-v, --verbose` | 输出详细日志 | False |
+| `--dry-run` | 仅分析，不执行剪切 | False |
 
 **示例：**
 ```bash
-# 基本用法
+# 基本用法（单文件）
 video-trimmer trim recording.mp4 -o output.mp4
 
-# 自定义阈值
-video-trimmer trim recording.mp4 -o output.mp4 -t -50 -d 1.0
+# 多视频联动（主视频 + 副视频）
+video-trimmer trim main.mp4 -s secondary1.mp4 -s secondary2.mp4 -o main_trimmed.mp4
+# 输出: main_trimmed.mp4, secondary1_trimmed.mp4, secondary2_trimmed.mp4
 
-# 预览模式（仅分析）
-video-trimmer trim recording.mp4 --dry-run -v
+# 自定义阈值
+video-trimmer trim main.mp4 -s sub.mp4 -o out.mp4 -t -50 -d 1.0
+
+# 预览模式（仅分析主视频）
+video-trimmer trim main.mp4 -s sub.mp4 -o out.mp4 --dry-run -v
+
+# 指定副视频输出后缀
+video-trimmer trim main.mp4 -s sub1.mp4 -s sub2.mp4 -o main.mp4 --output-suffix "_cut"
+# 输出: main.mp4, sub1_cut.mp4, sub2_cut.mp4
 ```
 
 ### 5.2 编程 API
 
+**单文件模式：**
 ```python
 from video_silence_trimmer import VideoTrimmer, TrimmerConfig
 
@@ -346,11 +411,36 @@ result = trimmer.trim("input.mp4", "output.mp4")
 
 print(f"原始时长: {result.original_duration:.2f}s")
 print(f"输出时长: {result.output_duration:.2f}s")
-print(f"切除片段数: {len(result.removed_segments)}")
+print(f"压缩比: {result.compression_ratio:.1%}")
+```
+
+**多视频联动模式：**
+```python
+from video_silence_trimmer import VideoTrimmer, TrimmerConfig
+
+config = TrimmerConfig()
+trimmer = VideoTrimmer(config)
+
+# 主视频 + 副视频列表
+secondary_videos = ["secondary1.mp4", "secondary2.mp4"]
+output_paths = ["main_trimmed.mp4", "secondary1_trimmed.mp4", "secondary2_trimmed.mp4"]
+
+result = trimmer.trim_multi(
+    main_video="main.mp4",
+    secondary_videos=secondary_videos,
+    outputs=output_paths
+)
+
+print(f"主视频原始时长: {result.original_duration:.2f}s")
+print(f"主视频输出时长: {result.output_duration:.2f}s")
+print(f"副视频处理数: {len(result.secondary_results)}")
+for name, r in result.secondary_results.items():
+    print(f"  {name}: {r.original_duration:.2f}s -> {r.output_duration:.2f}s")
 ```
 
 ### 5.3 返回结果模型
 
+**单文件结果：**
 ```python
 @dataclass
 class TrimResult:
@@ -359,12 +449,22 @@ class TrimResult:
     removed_segments: List[Segment]  # 被切除的片段列表
     kept_segments: List[Segment]     # 保留的片段列表
     processing_time: float          # 处理耗时(秒)
+    compression_ratio: float        # 压缩比 (output/original)
 
 @dataclass
 class Segment:
     start: float   # 起始时间(秒)
     end: float     # 结束时间(秒)
     is_silent: bool  # 是否为静音片段
+```
+
+**多视频联动结果：**
+```python
+@dataclass
+class MultiTrimResult:
+    main_result: TrimResult                    # 主视频结果
+    secondary_results: Dict[str, TrimResult]   # 副视频结果 {文件名: 结果}
+    total_processing_time: float               # 总处理耗时
 ```
 
 ---
@@ -405,6 +505,8 @@ def cut_and_concat(video_path: str, segments: List[Segment], output_path: str):
 
 ## 7. 错误处理
 
+### 7.1 通用错误
+
 | 场景 | 处理策略 |
 |------|----------|
 | 文件格式不支持 | 抛出 `UnsupportedFormatError`，提示支持的格式 |
@@ -412,6 +514,15 @@ def cut_and_concat(video_path: str, segments: List[Segment], output_path: str):
 | 视频无音频流 | 抛出 `NoAudioStreamError`，建议用户检查视频 |
 | 磁盘空间不足 | 在写入前检查可用空间，不足时提前终止 |
 | 权限拒绝 | 捕获并提示输出路径权限问题 |
+
+### 7.2 多视频联动错误
+
+| 场景 | 处理策略 |
+|------|----------|
+| 副视频时长与主视频不一致 | 抛出 `VideoLengthMismatchError`，列出具体差异 |
+| 副视频不存在 | 抛出 `FileNotFoundError`，提示检查路径 |
+| 副视频无视频流 | 抛出 `NoVideoStreamError`，提示该文件无法处理 |
+| 输出路径冲突 | 覆盖或提示用户确认 |
 
 ---
 
@@ -482,5 +593,5 @@ video_silence_trimmer/
 
 ---
 
-*文档版本: v1.0*
-*最后更新: 2026-04-15*
+*文档版本: v1.1*
+*最后更新: 2026-04-17*

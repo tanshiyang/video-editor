@@ -218,17 +218,19 @@ class VideoTrimmer:
 
         clipped = []
         for seg in segments:
-            if seg.end <= max_duration:
+            if seg.start >= max_duration:
+                # 片段完全超出范围，跳过
+                continue
+            elif seg.end <= max_duration:
                 # 片段完全在范围内
                 clipped.append(seg)
-            elif seg.start < max_duration:
+            else:
                 # 片段部分超出范围，剪辑 end
                 clipped.append(Segment(
                     start=seg.start,
                     end=max_duration,
                     is_silent=seg.is_silent,
                 ))
-            # else: 片段完全超出范围，跳过
 
         return clipped
 

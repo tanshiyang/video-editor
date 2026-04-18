@@ -75,19 +75,32 @@ def compute_rms(
 def detect_silence_frames(
     rms: np.ndarray,
     threshold_db: float = -40.0,
+    min_rms: float = None,
 ) -> np.ndarray:
     """检测静音帧
 
     Args:
         rms: RMS 能量数组
         threshold_db: 静音阈值（分贝）
+        min_rms: 最小RMS值，用于避免极低噪声的误判
 
     Returns:
         布尔数组，True 表示静音帧
     """
     threshold_amplitude = db_to_amplitude(threshold_db)
+    
+    # 基本阈值检测
     is_silent = rms < threshold_amplitude
-
+    
+    # 如果提供了最小RMS，使用自适应阈值
+    if min_rms is not None:
+        # 计算音频的整体能量分布
+        rms_sorted = np.sort(rms)
+        # 使用较低百分位作为背景噪声水平
+        noise_floor = rms_sorted[int(len(rms_sorted) * 0.1)]  # 10th percentile
+        adaptive_threshold = max(threshold_amplitude, noise_floor * 0.5)
+        is_silent = rms < adaptive_threshold
+    
     silent_count = np.sum(is_silent)
     total_count = len(is_silent)
     logger.debug(
@@ -128,6 +141,9 @@ def merge_silence_intervals(
     silent_ends = np.where(silent_changes == -1)[0]   # 结束静音的帧
 
     # 处理首尾情况
+    if len(is_silent) == 0:
+        return []
+        
     if len(silent_starts) == 0 and len(silent_ends) == 0:
         if is_silent[0]:
             # 全程静音

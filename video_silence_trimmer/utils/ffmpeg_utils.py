@@ -65,6 +65,9 @@ def run_ffmpeg(
 
     Returns:
         subprocess.CompletedProcess
+
+    Raises:
+        FFmpegError: 当 check=True 且命令失败时
     """
     check_ffmpeg()
 
@@ -98,6 +101,16 @@ def run_ffmpeg(
             capture_output=capture_output,
             text=True,
         )
+
+    # 如果命令失败，提供详细错误信息
+    if result.returncode != 0:
+        error_msg = f"FFmpeg 命令执行失败 (返回码: {result.returncode})\n"
+        error_msg += f"命令: {' '.join(cmd)}\n"
+        if result.stderr:
+            error_msg += f"错误输出:\n{result.stderr}"
+        if result.stdout:
+            error_msg += f"标准输出:\n{result.stdout}"
+        raise FFmpegError(error_msg)
 
     return result
 

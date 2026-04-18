@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional
 
@@ -54,10 +55,12 @@ class VideoCutter:
         try:
             segment_files: List[Path] = []
 
-            # 逐个剪切保留的片段
-            for i, segment in enumerate(kept_segments):
-                segment_file = temp_dir / f"segment_{i:04d}.mp4"
+            # 并行剪切保留的片段
+            logger.info(f"并行剪切 {len(kept_segments)} 个片段...")
 
+            def cut_single_segment(i: int, segment: Segment) -> Path:
+                """剪切单个片段"""
+                segment_file = temp_dir / f"segment_{i:04d}.mp4"
                 logger.debug(
                     f"剪切片段 {i+1}/{len(kept_segments)}: "
                     f"{segment.start:.2f}s - {segment.end:.2f}s"
@@ -73,8 +76,20 @@ class VideoCutter:
                         "audio_codec": self.config.audio_codec,
                     },
                 )
+                return segment_file
 
-                segment_files.append(segment_file)
+            # 使用线程池并行处理
+            with ThreadPoolExecutor(max_workers=min(len(kept_segments), 4)) as executor:
+                futures = [
+                    executor.submit(cut_single_segment, i, segment)
+                    for i, segment in enumerate(kept_segments)
+                ]
+                
+                for future in as_completed(futures):
+                    segment_files.append(future.result())
+
+            # 按顺序排序文件
+            segment_files.sort()
 
             # 合并所有片段
             logger.info(f"合并 {len(segment_files)} 个片段...")
@@ -100,6 +115,17 @@ class VideoCutter:
             # 清理临时文件（Windows 需要延迟）
             time.sleep(0.1)
             try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
+                # 逐个删除文件以获得更好的错误控制
+                for seg_file in segment_files:
+                    try:
+                        seg_file.unlink(missing_ok=True)
+                    except Exception as e:
+                        logger.warning(f"删除临时文件失败 {seg_file}: {e}")
+                
+                # 删除目录
+                try:
+                    temp_dir.rmdir()
+                except Exception as e:
+                    logger.warning(f"删除临时目录失败 {temp_dir}: {e}")
             except Exception as e:
                 logger.warning(f"清理临时文件失败: {e}")

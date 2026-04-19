@@ -203,14 +203,14 @@ def invert_silence_intervals(
     current_time = 0.0
 
     for silence_start, silence_end in silence_intervals:
-        # 在静音开始前保留一段时间（缓冲）
-        buffer_start = max(current_time, silence_start - keep_before)
+        # 静音开始前保留一段时间
+        buffer_start = silence_start - keep_before
 
         # 如果当前时间到静音开始前有间隔，保留这段
         if buffer_start > current_time:
             kept_intervals.append((current_time, buffer_start))
 
-        # 静音区间结束后保留一段时间
+        # 静音区间结束后跳到 keep_after 后
         current_time = silence_end + keep_after
 
     # 处理最后的非静音部分

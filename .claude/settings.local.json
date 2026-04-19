@@ -16,7 +16,10 @@
       "Bash(python -m video_silence_trimmer info --help)",
       "Bash(python -m py_compile video_silence_trimmer/cli.py)",
       "Bash(python -m py_compile d:/Code/vibe-code/video-editor/video_silence_trimmer/core/trimmer.py)",
-      "Bash(python -c \"from video_silence_trimmer import VideoTrimmer, VideoLengthMismatchError; print\\('Import OK'\\)\")"
+      "Bash(python -c \"from video_silence_trimmer import VideoTrimmer, VideoLengthMismatchError; print\\('Import OK'\\)\")",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -c \"from video_silence_trimmer import VideoTrimmer, TrimmerConfig; print\\('Import OK'\\)\")",
+      "Read(//c/Users/tansh/.claude/skills\" 2>/dev/**)"
     ]
   }
 }

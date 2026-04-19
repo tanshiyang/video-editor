@@ -56,7 +56,7 @@ class VideoTrimmer:
         original_duration = get_video_duration(input_video)
 
         # 分析音频
-        silence_segments, kept_segments = self.analyzer.analyze(input_video)
+        silence_segments, kept_segments, original_duration = self.analyzer.analyze(input_video)
 
         # 执行剪切
         output_duration = self.cutter.cut(
@@ -126,7 +126,7 @@ class VideoTrimmer:
                 )
 
         # 分析主视频音频，获取保留片段
-        silence_segments, kept_segments = self.analyzer.analyze(main_video)
+        silence_segments, kept_segments, _ = self.analyzer.analyze(main_video)
 
         logger.info(f"主视频分析完成，静音片段数: {len(silence_segments)}")
         logger.info(f"保留片段数: {len(kept_segments)}")

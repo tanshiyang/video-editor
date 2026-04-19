@@ -1,5 +1,6 @@
 """FFmpeg 封装工具"""
 
+import json
 import os
 import platform
 import shutil
@@ -165,7 +166,6 @@ def get_video_info(video_path: Path) -> dict:
         str(video_path),
     ]
 
-    import json
     result = subprocess.run(
         cmd,
         capture_output=True,
@@ -240,19 +240,30 @@ def cut_segment(
         output_path: 输出视频路径
         start: 起始时间（秒）
         end: 结束时间（秒）
-        config: 配置参数
+        config: 配置参数（video_codec, audio_codec）
     """
     duration = end - start
     logger.debug(f"剪切片段: {start:.2f}s - {end:.2f}s (时长: {duration:.2f}s)")
 
+    # Windows 下需要正斜杠路径
+    video_path_str = str(video_path).replace("\\", "/")
+    output_path_str = str(output_path).replace("\\", "/")
+
+    # 始终重新编码音频以避免时间戳问题，copy 模式仅用于视频
+    video_codec = "copy"
+    audio_codec = "aac"
+    if config:
+        video_codec = config.get("video_codec", "libx264")
+        audio_codec = config.get("audio_codec", "aac")
+
     cmd = [
         "ffmpeg", "-y",
         "-ss", str(start),
-        "-i", str(video_path),
+        "-i", video_path_str,
         "-t", str(duration),
-        "-c:v", "copy" if not config else config.get("video_codec", "copy"),
-        "-c:a", "copy" if not config else config.get("audio_codec", "aac"),
-        str(output_path),
+        "-c:v", video_codec,
+        "-c:a", audio_codec,
+        output_path_str,
     ]
 
     result = run_ffmpeg(cmd)

@@ -38,7 +38,7 @@ class AudioAnalyzer:
         self,
         video_path: Path,
         audio_path: Path = None,
-    ) -> Tuple[List[Segment], List[Segment]]:
+    ) -> Tuple[List[Segment], List[Segment], float]:
         """分析视频音频，检测静音区间
 
         Args:
@@ -46,7 +46,7 @@ class AudioAnalyzer:
             audio_path: 音频文件路径（可选，如果不提供则临时提取）
 
         Returns:
-            (静音片段列表, 保留片段列表)
+            (静音片段列表, 保留片段列表, 原始时长)
         """
         video_path = Path(video_path)
         logger.info(f"开始分析视频: {video_path}")
@@ -127,7 +127,7 @@ class AudioAnalyzer:
                 f"  可压缩: {100*total_silence/original_duration:.1f}%"
             )
 
-            return silence_segments, kept_segments
+            return silence_segments, kept_segments, original_duration
 
         finally:
             # 清理临时音频文件
@@ -147,11 +147,11 @@ class AudioAnalyzer:
             包含分析结果的字典
         """
         video_path = Path(video_path)
-        original_duration = get_video_duration(video_path)
 
         try:
-            silence_segments, kept_segments = self.analyze(video_path)
+            silence_segments, kept_segments, original_duration = self.analyze(video_path)
         except NoAudioStreamError:
+            original_duration = get_video_duration(video_path)
             return {
                 "has_audio": False,
                 "original_duration": original_duration,

@@ -80,13 +80,17 @@ class VideoCutter:
 
             # 使用线程池并行处理
             with ThreadPoolExecutor(max_workers=min(len(kept_segments), 4)) as executor:
-                futures = [
-                    executor.submit(cut_single_segment, i, segment)
+                futures = {
+                    executor.submit(cut_single_segment, i, segment): i
                     for i, segment in enumerate(kept_segments)
-                ]
-                
+                }
+
                 for future in as_completed(futures):
-                    segment_files.append(future.result())
+                    try:
+                        segment_files.append(future.result())
+                    except Exception as e:
+                        logger.error(f"片段剪切失败: {e}")
+                        # 继续处理其他片段
 
             # 按顺序排序文件
             segment_files.sort()
